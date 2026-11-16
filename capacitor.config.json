@@ -1,0 +1,6 @@
+{
+  "appId": "com.claudesync.app",
+  "appName": "Claude Sync",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
