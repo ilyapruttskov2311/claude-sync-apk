@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Claude Sync — Multi-Agent AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Lora:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #191918; --card: #232220; --elevated: #2B2A27; --border: #32312E; --text: #ECEAE4; --muted: #9E9B93; --accent: #D97757; }
+    body.light { --bg: #FAF9F5; --card: #FFFFFF; --elevated: #EFECE6; --border: #E5E2DC; --text: #141413; --muted: #6B6A65; --accent: #D97757; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; margin: 0; -webkit-tap-highlight-color: transparent; }
+    .serif-h { font-family: 'Newsreader', Georgia, serif; }
+    .serif-p { font-family: 'Lora', Georgia, serif; line-height: 1.68; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <header class="px-4 py-3 border-b flex items-center justify-between sticky top-0 z-20" style="background: var(--bg); border-color: var(--border);">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold shadow" style="background: var(--accent);">✦</div>
+      <div>
+        <div class="serif-h text-lg font-medium leading-none">Claude Sync</div>
+        <div class="text-[11px] mt-0.5" style="color: var(--muted);" id="activeTeamBadge">Gemini ⇄ ChatGPT → Claude</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="toggleView()" id="viewBtn" class="px-3 py-1.5 rounded-xl text-xs font-medium border" style="background: var(--card); border-color: var(--border);">Настройки</button>
+      <button onclick="toggleTheme()" class="p-2 rounded-xl border text-xs" style="background: var(--card); border-color: var(--border);">🌓</button>
+    </div>
+  </header>
+
+  <main id="chatView" class="flex-1 flex flex-col max-w-3xl w-full mx-auto p-4 space-y-4 overflow-y-auto pb-36">
+    <div id="emptyState" class="py-10 text-center space-y-3">
+      <h1 class="serif-h text-2xl sm:text-3xl">Совет ИИ-агентов в стиле Claude</h1>
+      <p class="text-xs sm:text-sm max-w-md mx-auto" style="color: var(--muted);">Синхронизация Google Gemini, OpenAI ChatGPT, Anthropic Claude, DeepSeek, Grok, Mistral и OpenRouter.</p>
+    </div>
+    <div id="messagesBox" class="space-y-4"></div>
+  </main>
+
+  <section id="settingsView" class="hidden flex-1 max-w-3xl w-full mx-auto p-4 space-y-4 pb-24">
+    <div class="p-4 rounded-2xl border space-y-3" style="background: var(--card); border-color: var(--border);">
+      <h2 class="serif-h text-lg font-medium">API Ключи провайдеров (хранятся на устройстве)</h2>
+      <div id="providersList" class="space-y-3"></div>
+    </div>
+    <div class="p-4 rounded-2xl border space-y-3" style="background: var(--card); border-color: var(--border);">
+      <h2 class="serif-h text-lg font-medium">Выбор моделей команды агентов</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="teamSelectors"></div>
+    </div>
+  </section>
+
+  <footer id="composerBar" class="fixed bottom-0 left-0 right-0 p-3 border-t" style="background: var(--bg); border-color: var(--border);">
+    <div class="max-w-3xl mx-auto rounded-2xl border p-2.5 space-y-2" style="background: var(--card); border-color: var(--border);">
+      <textarea id="promptInput" rows="2" placeholder="Введите задачу для синхронизации нейросетей..." class="w-full bg-transparent resize-none focus:outline-none text-sm px-1"></textarea>
+      <div class="flex items-center justify-between gap-2 pt-1 border-t" style="border-color: var(--border);">
+        <select id="modeSelect" class="px-2.5 py-1 rounded-lg text-xs border bg-transparent" style="border-color: var(--border);">
+          <option value="consult">Авто-консультация (Агент 1 → 2 → Арбитр)</option>
+          <option value="debate">Агентные дебаты (2 раунда)</option>
+          <option value="split">Параллельный сплит</option>
+        </select>
+        <button onclick="sendSyncMessage()" id="sendBtn" class="px-4 py-1.5 rounded-xl text-xs font-semibold text-white" style="background: var(--accent);">Синхронизировать ↑</button>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const PROVIDERS = {
+      gemini: { name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com', models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3-pro-preview', 'gemini-3-flash-preview'] },
+      openai: { name: 'OpenAI ChatGPT', url: 'https://api.openai.com/v1', models: ['gpt-4o', 'gpt-4.1', 'gpt-4.1-mini', 'o3-mini'] },
+      anthropic: { name: 'Anthropic Claude', url: 'https://api.anthropic.com/v1', models: ['claude-3-7-sonnet-latest', 'claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-5-haiku-latest'] },
+      deepseek: { name: 'DeepSeek AI', url: 'https://api.deepseek.com/v1', models: ['deepseek-reasoner', 'deepseek-chat'] },
+      grok: { name: 'xAI Grok', url: 'https://api.x.ai/v1', models: ['grok-3', 'grok-3-mini'] },
+      mistral: { name: 'Mistral AI', url: 'https://api.mistral.ai/v1', models: ['mistral-large-latest', 'codestral-latest'] },
+      openrouter: { name: 'OpenRouter', url: 'https://openrouter.ai/api/v1', models: ['anthropic/claude-3.7-sonnet', 'google/gemini-2.5-pro-preview', 'deepseek/deepseek-r1'] }
+    };
+
+    const state = JSON.parse(localStorage.getItem('claude_sync_mobile_v1') || 'null') || {
+      keys: {},
+      lead: { provider: 'gemini', model: 'gemini-2.5-pro' },
+      reviewer: { provider: 'openai', model: 'gpt-4o' },
+      arbiter: { provider: 'anthropic', model: 'claude-3-7-sonnet-latest' }
+    };
+
+    function saveState() {
+      localStorage.setItem('claude_sync_mobile_v1', JSON.stringify(state));
+      document.getElementById('activeTeamBadge').textContent =
+        state.lead.model + ' ⇄ ' + state.reviewer.model + ' → ' + state.arbiter.model;
+    }
+
+    function toggleTheme() { document.body.classList.toggle('light'); }
+    function toggleView() {
+      const chat = document.getElementById('chatView');
+      const settings = document.getElementById('settingsView');
+      const comp = document.getElementById('composerBar');
+      const btn = document.getElementById('viewBtn');
+      const isChat = !chat.classList.contains('hidden');
+      chat.classList.toggle('hidden', isChat);
+      comp.classList.toggle('hidden', isChat);
+      settings.classList.toggle('hidden', !isChat);
+      btn.textContent = isChat ? 'В чат' : 'Настройки';
+    }
+
+    function renderSettings() {
+      const pList = document.getElementById('providersList');
+      pList.innerHTML = Object.entries(PROVIDERS).map(([id, p]) => `
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+          <label class="text-xs font-medium w-40">${p.name}</label>
+          <input type="password" value="${state.keys[id] || ''}" onchange="state.keys['${id}']=this.value;saveState();" placeholder="API ключ ${p.name}..." class="flex-1 px-3 py-1.5 rounded-xl border text-xs bg-transparent font-mono" style="border-color: var(--border);" />
+        </div>
+      `).join('');
+
+      const roles = [['lead', '1. Инициатор'], ['reviewer', '2. Критик-ревьюер'], ['arbiter', '3. Арбитр (Синтез)']];
+      document.getElementById('teamSelectors').innerHTML = roles.map(([slot, title]) => {
+        const cur = state[slot];
+        const models = PROVIDERS[cur.provider].models;
+        return `
+          <div class="p-3 rounded-xl border space-y-2" style="border-color: var(--border);">
+            <div class="text-xs font-semibold" style="color: var(--accent);">${title}</div>
+            <select onchange="state['${slot}'].provider=this.value;state['${slot}'].model=PROVIDERS[this.value].models[0];saveState();renderSettings();" class="w-full p-1.5 rounded-lg border text-xs bg-transparent" style="border-color: var(--border);">
+              ${Object.entries(PROVIDERS).map(([pid, p]) => `<option value="${pid}" ${cur.provider===pid?'selected':''}>${p.name}</option>`).join('')}
+            </select>
+            <select onchange="state['${slot}'].model=this.value;saveState();" class="w-full p-1.5 rounded-lg border text-xs font-mono bg-transparent" style="border-color: var(--border);">
+              ${models.map(m => `<option value="${m}" ${cur.model===m?'selected':''}>${m}</option>`).join('')}
+            </select>
+          </div>
+        `;
+      }).join('');
+      saveState();
+    }
+
+    async function callModel(slotObj, prompt) {
+      const { provider, model } = slotObj;
+      const key = (state.keys[provider] || '').trim();
+      if (!key) {
+        await new Promise(r => setTimeout(r, 600));
+        return `[Демо ${PROVIDERS[provider].name} · ${model}]: Проанализировал задачу «${prompt.slice(0, 60)}...». Архитектура и краевые случаи проверены.`;
+      }
+      if (provider === 'gemini') {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] })
+        });
+        const d = await r.json();
+        return d?.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(d);
+      }
+      if (provider === 'anthropic') {
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          body: JSON.stringify({ model, max_tokens: 2048, messages: [{ role: 'user', content: prompt }] })
+        });
+        const d = await r.json();
+        return d?.content?.[0]?.text || JSON.stringify(d);
+      }
+      const r = await fetch(`${PROVIDERS[provider].url}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] })
+      });
+      const d = await r.json();
+      return d?.choices?.[0]?.message?.content || JSON.stringify(d);
+    }
+
+    async function sendSyncMessage() {
+      const input = document.getElementById('promptInput');
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      document.getElementById('emptyState').classList.add('hidden');
+      const box = document.getElementById('messagesBox');
+      box.innerHTML += `<div class="p-3.5 rounded-2xl border ml-auto max-w-xl text-sm" style="background: var(--elevated); border-color: var(--border);">${text}</div>`;
+      const statusId = 'st-' + Date.now();
+      box.innerHTML += `<div id="${statusId}" class="p-4 rounded-2xl border text-xs space-y-2" style="background: var(--card); border-color: var(--border);"><div style="color: var(--accent);">⏳ Синхронизация агентов...</div></div>`;
+      const el = document.getElementById(statusId);
+      try {
+        const draft = await callModel(state.lead, text);
+        const review = await callModel(state.reviewer, `Задача: ${text}\nЧерновик 1: ${draft}\nПроведи критическое ревью.`);
+        const finalAns = await callModel(state.arbiter, `Задача: ${text}\nЧерновик: ${draft}\nРевью: ${review}\nСинтезируй итоговый ответ на русском языке.`);
+        el.innerHTML = `
+          <details class="text-xs pb-2 border-b" style="border-color: var(--border);">
+            <summary class="cursor-pointer font-medium" style="color: var(--accent);">Лог совещания агентов (2 шага)</summary>
+            <div class="mt-2 space-y-2 opacity-85"><div><b>1. ${state.lead.model}:</b> ${draft}</div><div><b>2. ${state.reviewer.model}:</b> ${review}</div></div>
+          </details>
+          <div class="serif-p text-sm pt-2 whitespace-pre-wrap">${finalAns}</div>
+        `;
+      } catch (e) {
+        el.innerHTML = `<div class="text-red-400">Ошибка: ${e.message}</div>`;
+      }
+    }
+    renderSettings();
+  </script>
+</body>
+</html>
