@@ -1,0 +1,14 @@
+{
+  "name": "claude-sync-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Claude Sync Multi-Provider AI Agent Synchronization App",
+  "scripts": {
+    "build": "echo \"Static web bundle in www/ is ready\""
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/cli": "^6.1.0",
+    "@capacitor/core": "^6.1.0"
+  }
+}
